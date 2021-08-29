@@ -1,28 +1,47 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sfn"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/ramrodo/tech-assessment-loan-startup/config"
 	"github.com/ramrodo/tech-assessment-loan-startup/handler"
 )
 
-// NewRouter - returns a router object with routes
-func NewRouter() *mux.Router {
+var sfnClient *sfn.SFN
 
-	router := mux.NewRouter().StrictSlash(true)
-	for _, route := range routes {
-		var httpHandler http.Handler
+func init() {
+	session, err := session.NewSession(&aws.Config{
+		Region: &config.C.AWS.Region,
+	})
 
-		httpHandler = route.HandlerFunc
-		httpHandler = handler.Logger(httpHandler, route.Name)
-
-		router.
-			Methods(route.Method).
-			Path(route.Pattern).
-			Name(route.Name).
-			Handler(httpHandler)
+	if err != nil {
+		panic(fmt.Errorf("error creating new AWS session: %s", err))
 	}
 
-	return router
+	sfnClient = sfn.New(session)
+}
+
+func NewRouter(middlewares ...func(http.Handler) http.Handler) *chi.Mux {
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(60 * time.Second))
+
+	r.Use(middlewares...)
+
+	r.Route("/", func(r chi.Router) {
+		r.Post("/credit-assignment", handler.CreditAssignment)
+	})
+
+	return r
 }
