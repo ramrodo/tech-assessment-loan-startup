@@ -1,73 +1,72 @@
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"time"
 
-	"github.com/ramrodo/tech-assessment-loan-startup/utils"
+	"github.com/ramrodo/tech-assessment-loan-startup/config"
+	"github.com/ramrodo/tech-assessment-loan-startup/router"
+	log "github.com/sirupsen/logrus"
 )
 
-type CreditAssigner interface {
-	Assign(investment int32) (int32, int32, int32, error)
-}
+const (
+	defaultGracefulTimeout = time.Second * 15
 
-type Investment struct {
-	amount int32
-}
+	serverWriteTimeout = time.Second * 10
+	serverReadTimeOut  = time.Second * 10
+	serverIdleTimeout  = time.Second * 10
+)
 
-type NotCombinationFoundError struct{}
+var port *uint
+var gracefulTimeout *time.Duration
 
-func (e *NotCombinationFoundError) Error() string {
-	return "No se logró encontrar una combinación válida"
-}
+func init() {
+	config.ReadConfig()
 
-func (Investment) Assign(investment int32) (int32, int32, int32, error) {
-	if investment < 100 {
-		return 0, 0, 0, &NotCombinationFoundError{}
-	}
-
-	credit_type_300_max := int(investment / 300)
-	credit_type_500_max := int(investment / 500)
-	credit_type_700_max := int(investment / 700)
-
-	// Get combinations until we find the first valid one, otherwise, return an error
-	var combination int32
-
-	for i := 0; i <= credit_type_300_max; i++ {
-		for j := 0; j <= credit_type_500_max; j++ {
-			for k := 0; k <= credit_type_700_max; k++ {
-				combination = int32((300 * i) + (500 * j) + (700 * k))
-
-				if combination == investment {
-					return int32(i), int32(j), int32(k), nil
-				}
-
-				if combination > investment {
-					break
-				}
-			}
-		}
-	}
-
-	return 0, 0, 0, &NotCombinationFoundError{}
+	// Config for server
+	port = flag.Uint("port", uint(config.C.Server.Port), "server port")
+	gracefulTimeout = flag.Duration("graceful-timeout", defaultGracefulTimeout, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
+	flag.Parse()
 }
 
 func main() {
-	investment := Investment{}
-	credit_type_300, credit_type_500, credit_type_700, err := investment.Assign(1100)
+	router := router.NewRouter()
 
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Print("Puedes asignar:")
-		if credit_type_300 > 0 {
-			fmt.Printf("\n%d crédito%s de $300", credit_type_300, utils.Plural(credit_type_300))
-		}
-		if credit_type_500 > 0 {
-			fmt.Printf("\n%d crédito%s de $500", credit_type_500, utils.Plural(credit_type_500))
-		}
-		if credit_type_700 > 0 {
-			fmt.Printf("\n%d crédito%s de $700", credit_type_700, utils.Plural(credit_type_700))
-		}
-		fmt.Println()
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%d", *port),
+		WriteTimeout: serverWriteTimeout,
+		ReadTimeout:  serverReadTimeOut,
+		IdleTimeout:  serverIdleTimeout,
+		Handler:      router,
 	}
+
+	// Run our server in a goroutine so that it doesn't block.
+	go func() {
+		log.Infof("starting server on port %d...\n", *port)
+		if err := srv.ListenAndServe(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	c := make(chan os.Signal, 1)
+	// We'll accept graceful shutdowns when quit via SIGINT (Ctrl+C)
+	// SIGKILL, SIGQUIT or SIGTERM (Ctrl+/) will not be caught.
+	signal.Notify(c, os.Interrupt)
+
+	// Block until we receive our signal.
+	<-c
+
+	// Create a deadline to wait for.
+	ctx, cancel := context.WithTimeout(context.Background(), *gracefulTimeout)
+	defer cancel()
+	// Doesn't block if no connections, but will otherwise wait
+	// until the timeout deadline.
+	srv.Shutdown(ctx)
+	log.Info("shutting down")
+	os.Exit(0)
 }
