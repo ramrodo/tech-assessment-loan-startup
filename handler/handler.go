@@ -64,5 +64,4 @@ func CreditAssignment(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(res); err != nil {
 		panic(fmt.Sprintf("Error at unmarshalling body: %s", err))
 	}
-
 }
