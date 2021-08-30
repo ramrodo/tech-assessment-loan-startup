@@ -11,15 +11,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/ramrodo/tech-assessment-loan-startup/config"
 	"github.com/ramrodo/tech-assessment-loan-startup/handler"
 )
 
 var sfnClient *sfn.SFN
 
+var awsRegion string = "us-east-1"
+
 func init() {
 	session, err := session.NewSession(&aws.Config{
-		Region: &config.C.AWS.Region,
+		Region: &awsRegion,
 	})
 
 	if err != nil {

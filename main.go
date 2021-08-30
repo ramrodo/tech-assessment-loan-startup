@@ -9,36 +9,45 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/ramrodo/tech-assessment-loan-startup/config"
-	"github.com/ramrodo/tech-assessment-loan-startup/router"
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+	chiadapter "github.com/awslabs/aws-lambda-go-api-proxy/chi"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/ramrodo/tech-assessment-loan-startup/router"
+	"github.com/ramrodo/tech-assessment-loan-startup/runtime"
 )
 
 const (
 	defaultGracefulTimeout = time.Second * 15
-
-	serverWriteTimeout = time.Second * 10
-	serverReadTimeOut  = time.Second * 10
-	serverIdleTimeout  = time.Second * 10
+	defaultPort            = 3000
+	serverWriteTimeout     = time.Second * 10
+	serverReadTimeOut      = time.Second * 10
+	serverIdleTimeout      = time.Second * 10
 )
 
-var port *uint
+var port int
 var gracefulTimeout *time.Duration
 
-func init() {
-	config.ReadConfig()
+func main() {
+	flag.IntVar(&port, "port", defaultPort, "server port")
 
-	// Config for server
-	port = flag.Uint("port", uint(config.C.Server.Port), "server port")
-	gracefulTimeout = flag.Duration("graceful-timeout", defaultGracefulTimeout, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
-	flag.Parse()
+	if runtime.IsLambdaEnvironment() {
+		lambda.Start(HandleLambdaEvent)
+		return
+	}
+	startDevelopmentServer()
 }
 
-func main() {
+func startDevelopmentServer() {
+	flag.Parse()
+
+	gracefulTimeout = flag.Duration("graceful-timeout", defaultGracefulTimeout, "the duration for which the server gracefully wait for existing connections to finish - e.g. 15s or 1m")
+
 	router := router.NewRouter()
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", *port),
+		Addr:         fmt.Sprintf(":%d", port),
 		WriteTimeout: serverWriteTimeout,
 		ReadTimeout:  serverReadTimeOut,
 		IdleTimeout:  serverIdleTimeout,
@@ -47,7 +56,7 @@ func main() {
 
 	// Run our server in a goroutine so that it doesn't block.
 	go func() {
-		log.Infof("starting server on port %d...\n", *port)
+		log.Infof("starting server on port %d...\n", port)
 		if err := srv.ListenAndServe(); err != nil {
 			log.Fatal(err)
 		}
@@ -69,4 +78,11 @@ func main() {
 	srv.Shutdown(ctx)
 	log.Info("shutting down")
 	os.Exit(0)
+}
+
+func HandleLambdaEvent(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	router := router.NewRouter()
+	adapter := chiadapter.New(router)
+
+	return adapter.ProxyWithContext(ctx, req)
 }
