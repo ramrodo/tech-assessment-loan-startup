@@ -2,18 +2,88 @@
 
 Technical assessment for a Loan Startup
 
-## How to test API
+## Requirements (Only for testing in localhost)
+
+- Go 1.x
+
+## How to run this API
 
 ### On localhost
+
+Run the API with:
 
 ```sh
 go run main.go
 ```
 
-### On sandbox
+### On public API (AWS)
 
-- AWS
+This API is also deployed on AWS using API Gateway service. Just hit this URL for your API requests:
 
-This API is deployed on AWS using API Gateway service. Use this URL for your API requests:
+[https://ak694wjtf2.execute-api.us-east-1.amazonaws.com/Dev/credit-assignment](https://ak694wjtf2.execute-api.us-east-1.amazonaws.com/Dev/credit-assignment)
 
-`http://TBD`
+_NOTE: The above public API URL will be available just for a few days to be evaluated by the technical assessment reviewers._
+
+## How to use it
+
+### Request
+
+Send a **POST** request to the `/credit-assignment` endpoint including the investment in the body request:
+
+```json
+{
+    "investment": <integer>
+}
+```
+
+### Response
+
+- HTTP 200 OK
+
+    If the investment given can be assigned in valid credits
+
+- HTTP 400 Bad Request
+
+    If the investment given is not valid
+
+### Examples
+
+- Sending a valid investment:
+
+Request body
+
+```json
+{
+    "investment": 1100
+}
+```
+
+Response: _HTTP 200 OK_
+
+```json
+{
+    "credit_type_300": 2,
+    "credit_type_500": 1,
+    "credit_type_700": 0
+}
+```
+
+- Sending an invalid investment:
+
+Request body
+
+```json
+{
+    "investment": 400
+}
+```
+
+Response: _HTTP 400 Bad Request_
+
+```json
+{
+    "credit_type_300": 0,
+    "credit_type_500": 0,
+    "credit_type_700": 0
+}
+```
