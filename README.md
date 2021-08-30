@@ -28,27 +28,29 @@ _NOTE: The above public API URL will be available just for a few days to be eval
 
 ### Request
 
-Send a **POST** request to the `/credit-assignment` endpoint including the investment in the body request:
+Send a **POST** request to the `/credit-assignment` endpoint including the investment key and value to the body request:
 
-```json
+```
 {
-    "investment": <integer>
+    "investment": <amount>
 }
 ```
 
+- _**\<amount\>**_: Any positive integer multiple of 100
+
 ### Response
 
-- HTTP 200 OK
+- **HTTP 200 OK**
 
     If the investment given can be assigned in valid credits
 
-- HTTP 400 Bad Request
+- **HTTP 400 Bad Request**
 
     If the investment given is not valid
 
 ### Examples
 
-- Sending a valid investment:
+- **Sending a valid investment**
 
 Request body
 
@@ -68,7 +70,7 @@ Response: _HTTP 200 OK_
 }
 ```
 
-- Sending an invalid investment:
+- **Sending an invalid investment**
 
 Request body
 
